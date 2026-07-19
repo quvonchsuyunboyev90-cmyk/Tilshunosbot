@@ -14,11 +14,8 @@ dp = Dispatcher()
 
 app = Flask(__name__)
 
-# Har bir foydalanuvchi uchun suhbat tarixi shu yerda saqlanadi
 chat_histories = {}
-MAX_HISTORY = 20  # Har bir foydalanuvchi uchun eslab qolinadigan xabarlar soni
-
-SYSTEM_INSTRUCTION = "Siz professional AI Repetitorsiz. Foydalanuvchiga chet tillarini o'rganishda yordam berasiz. Agar xato yozsa, muloyimlik bilan xatosini tushuntirib, to'g'ri variantini ko'rsating. Doimo o'zbek tilida, qisqa va tushunarli javob qaytaring. Oldingi suhbatni yodda tuting va shu asosda javob bering."
+MAX_HISTORY = 30
 
 @app.route('/')
 def home():
@@ -35,37 +32,34 @@ def ask_gemini_with_history(chat_id, user_message):
         chat_histories[chat_id] = []
 
     history = chat_histories[chat_id]
-
-    # Foydalanuvchi xabarini tarixga qo'shamiz
     history.append({"role": "user", "parts": [{"text": user_message}]})
 
-    # Tarixni cheklaymiz (juda uzun bo'lib ketmasin)
     if len(history) > MAX_HISTORY:
         history = history[-MAX_HISTORY:]
         chat_histories[chat_id] = history
 
     payload = {
-        "system_instruction": {"parts": [{"text": SYSTEM_INSTRUCTION}]},
         "contents": history
     }
     headers = {"Content-Type": "application/json"}
 
     try:
         response = requests.post(url, json=payload, headers=headers, timeout=20)
+        print("[GEMINI] Status: " + str(response.status_code))
         if response.status_code == 200:
             res_json = response.json()
             answer = res_json["candidates"][0]["content"]["parts"][0]["text"]
-            # Bot javobini ham tarixga qo'shamiz
             history.append({"role": "model", "parts": [{"text": answer}]})
             chat_histories[chat_id] = history
             return answer
         else:
-            print("[GEMINI] XATO: " + response.text)
-            # Xato bo'lsa, foydalanuvchi xabarini tarixdan olib tashlaymiz
+            print("[GEMINI] TO'LIQ XATO: " + response.text)
             history.pop()
-            return "Google Server Xatosi. Qayta urinib ko'ring."
+            if response.status_code == 429:
+                return "Hozircha so'rovlar juda ko'p, biroz kutib qayta yozing."
+            return "Google Server Xatosi (" + str(response.status_code) + "). Qayta urinib ko'ring."
     except Exception as e:
-        print("[GEMINI] XATO: " + str(e))
+        print("[GEMINI] KUTILMAGAN XATO: " + str(e))
         if history:
             history.pop()
         return "Ichki xatolik: " + str(e)
@@ -73,12 +67,12 @@ def ask_gemini_with_history(chat_id, user_message):
 @dp.message(Command("start"))
 async def start_command(message: types.Message):
     chat_histories[message.chat.id] = []
-    await message.answer("Salom! Men sizning shaxsiy AI Repetitoringizman. Qaysi tilni o'rganamiz?")
+    await message.answer("Salom! Men bilan istagan mavzuda suhbatlashishingiz mumkin.")
 
 @dp.message(Command("reset"))
 async def reset_command(message: types.Message):
     chat_histories[message.chat.id] = []
-    await message.answer("Suhbat tarixi tozalandi. Yangidan boshlaymiz!")
+    await message.answer("Suhbat tarixi tozalandi.")
 
 @dp.message()
 async def handle_message(message: types.Message):
