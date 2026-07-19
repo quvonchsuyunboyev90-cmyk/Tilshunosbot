@@ -14,6 +14,12 @@ dp = Dispatcher()
 
 app = Flask(__name__)
 
+# Har bir foydalanuvchi uchun suhbat tarixi shu yerda saqlanadi
+chat_histories = {}
+MAX_HISTORY = 20  # Har bir foydalanuvchi uchun eslab qolinadigan xabarlar soni
+
+SYSTEM_INSTRUCTION = "Siz professional AI Repetitorsiz. Foydalanuvchiga chet tillarini o'rganishda yordam berasiz. Agar xato yozsa, muloyimlik bilan xatosini tushuntirib, to'g'ri variantini ko'rsating. Doimo o'zbek tilida, qisqa va tushunarli javob qaytaring. Oldingi suhbatni yodda tuting va shu asosda javob bering."
+
 @app.route('/')
 def home():
     return "Bot ishlab turibdi!"
@@ -21,27 +27,58 @@ def home():
 def run_flask():
     app.run(host='0.0.0.0', port=10000)
 
-def ask_gemini_direct(user_message):
+def ask_gemini_with_history(chat_id, user_message):
     print("[GEMINI] So'rov: " + str(user_message))
     url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash:generateContent?key=" + GEMINI_API_KEY
-    full_text = "Siz professional AI Repetitorsiz. Foydalanuvchiga chet tillarini o'rganishda yordam berasiz. Agar xato yozsa, muloyimlik bilan xatosini tushuntirib, to'g'ri variantini ko'rsating. Doimo o'zbek tilida, qisqa va tushunarli javob qaytaring.\n\nFoydalanuvchi xabari: " + str(user_message)
-    payload = {"contents": [{"parts": [{"text": full_text}]}]}
+
+    if chat_id not in chat_histories:
+        chat_histories[chat_id] = []
+
+    history = chat_histories[chat_id]
+
+    # Foydalanuvchi xabarini tarixga qo'shamiz
+    history.append({"role": "user", "parts": [{"text": user_message}]})
+
+    # Tarixni cheklaymiz (juda uzun bo'lib ketmasin)
+    if len(history) > MAX_HISTORY:
+        history = history[-MAX_HISTORY:]
+        chat_histories[chat_id] = history
+
+    payload = {
+        "system_instruction": {"parts": [{"text": SYSTEM_INSTRUCTION}]},
+        "contents": history
+    }
     headers = {"Content-Type": "application/json"}
+
     try:
         response = requests.post(url, json=payload, headers=headers, timeout=20)
         if response.status_code == 200:
             res_json = response.json()
-            return res_json["candidates"][0]["content"]["parts"][0]["text"]
+            answer = res_json["candidates"][0]["content"]["parts"][0]["text"]
+            # Bot javobini ham tarixga qo'shamiz
+            history.append({"role": "model", "parts": [{"text": answer}]})
+            chat_histories[chat_id] = history
+            return answer
         else:
             print("[GEMINI] XATO: " + response.text)
+            # Xato bo'lsa, foydalanuvchi xabarini tarixdan olib tashlaymiz
+            history.pop()
             return "Google Server Xatosi. Qayta urinib ko'ring."
     except Exception as e:
         print("[GEMINI] XATO: " + str(e))
+        if history:
+            history.pop()
         return "Ichki xatolik: " + str(e)
 
 @dp.message(Command("start"))
 async def start_command(message: types.Message):
+    chat_histories[message.chat.id] = []
     await message.answer("Salom! Men sizning shaxsiy AI Repetitoringizman. Qaysi tilni o'rganamiz?")
+
+@dp.message(Command("reset"))
+async def reset_command(message: types.Message):
+    chat_histories[message.chat.id] = []
+    await message.answer("Suhbat tarixi tozalandi. Yangidan boshlaymiz!")
 
 @dp.message()
 async def handle_message(message: types.Message):
@@ -51,7 +88,10 @@ async def handle_message(message: types.Message):
     await bot.send_chat_action(chat_id=message.chat.id, action="typing")
     try:
         loop = asyncio.get_event_loop()
-        ai_response = await asyncio.wait_for(loop.run_in_executor(None, ask_gemini_direct, message.text), timeout=25)
+        ai_response = await asyncio.wait_for(
+            loop.run_in_executor(None, ask_gemini_with_history, message.chat.id, message.text),
+            timeout=25
+        )
     except Exception as e:
         print("[TELEGRAM] Xato: " + str(e))
         ai_response = "Nimadir xato ketdi, qayta urinib ko'ring."
