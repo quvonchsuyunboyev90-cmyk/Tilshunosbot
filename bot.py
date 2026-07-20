@@ -13,7 +13,7 @@ from config import (
     RAPIDAPI_KEY,
     RAPIDAPI_HOST,
 )
-
+from services import call_sport_api, search_team
 bot = Bot(token=TELEGRAM_TOKEN)
 dp = Dispatcher()
 
@@ -30,34 +30,7 @@ def run_flask():
     app.run(host='0.0.0.0', port=10000)
 
 # ---------- SPORT API FUNKSIYALARI ----------
-def call_sport_api(endpoint_path, params=None):
-    url = "https://" + RAPIDAPI_HOST + endpoint_path
-    headers = {
-        "x-rapidapi-key": RAPIDAPI_KEY,
-        "x-rapidapi-host": RAPIDAPI_HOST
-    }
-    try:
-        response = requests.get(url, headers=headers, params=params or {}, timeout=20)
-        print("[SPORT API] " + endpoint_path + " -> Status: " + str(response.status_code))
-        return response
-    except Exception as e:
-        print("[SPORT API] XATO: " + str(e))
-        return None
 
-def search_team(team_name):
-    response = call_sport_api("/football-teams-search", {"search": team_name})
-    if response is None or response.status_code != 200:
-        return None
-    try:
-        data = response.json()
-        suggestions = data.get("response", {}).get("suggestions", [])
-        for item in suggestions:
-            if item.get("type") == "team":
-                return item
-        return None
-    except Exception as e:
-        print("[SEARCH TEAM] Parse xato: " + str(e))
-        return None
 
 def get_head_to_head(team1_id, team2_id):
     # Turli parametr nomlarini sinaymiz, chunki aniq nomi noma'lum
