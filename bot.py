@@ -88,12 +88,21 @@ def ask_gemini_with_history(chat_id, user_message):
 @dp.message(Command("start"))
 async def start_command(message: types.Message):
     chat_histories[message.chat.id] = []
-    await message.answer("Salom! Sport tahlil boti.\n\n/apitest <yo'l> - API endpoint'ni sinash uchun (masalan: /apitest /football-get-leagues-list-all)\n\nOddiy xabar yozsangiz, men bilan suhbatlashishingiz mumkin.")
+    await message.answer("Salom! Sport tahlil boti.\n\n/apitest <yo'l> - API endpoint'ni sinash uchun\n/apidebug - kalitni tekshirish\n\nOddiy xabar yozsangiz, men bilan suhbatlashishingiz mumkin.")
 
 @dp.message(Command("reset"))
 async def reset_command(message: types.Message):
     chat_histories[message.chat.id] = []
     await message.answer("Suhbat tozalandi.")
+
+@dp.message(Command("apidebug"))
+async def apidebug_command(message: types.Message):
+    key = RAPIDAPI_KEY or ""
+    if len(key) < 8:
+        info = "RAPIDAPI_KEY topilmadi yoki juda qisqa: '" + key + "'"
+    else:
+        info = "Uzunligi: " + str(len(key)) + "\nBoshi: " + key[:6] + "\nOxiri: " + key[-6:]
+    await message.answer(info)
 
 @dp.message(Command("apitest"))
 async def apitest_command(message: types.Message):
