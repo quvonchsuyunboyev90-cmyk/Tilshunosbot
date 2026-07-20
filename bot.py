@@ -7,11 +7,12 @@ import requests
 from flask import Flask
 from aiogram import Bot, Dispatcher, types
 from aiogram.filters import Command
-
-TELEGRAM_TOKEN = os.environ.get("TELEGRAM_TOKEN")
-GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY")
-RAPIDAPI_KEY = os.environ.get("RAPIDAPI_KEY")
-RAPIDAPI_HOST = "free-api-live-football-data.p.rapidapi.com"
+from config import (
+    TELEGRAM_TOKEN,
+    GEMINI_API_KEY,
+    RAPIDAPI_KEY,
+    RAPIDAPI_HOST,
+)
 
 bot = Bot(token=TELEGRAM_TOKEN)
 dp = Dispatcher()
